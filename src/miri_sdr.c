@@ -77,7 +77,7 @@ void usage(void)
 		"\t    8000000: 8MHz\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"
 		"\t[-d device_index (default: 0)]\n"
-	    "\t[-T device_type device variant (default: 0)]\n"
+	    "\t[-D device_type device variant (default: 0)]\n"
         "\t    0:       Default\n"
         "\t    1:       SDRPlay\n"
 		"\t[-g gain (default: 0 for auto)]\n"
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
 	int intval;
 
 #if !defined (_WIN32) || defined(__MINGW32__)
-	while ((opt = getopt(argc, argv, "b:d:T:e:f:g:i:m:s:w:S::")) != -1) {
+	while ((opt = getopt(argc, argv, "b:d:D:e:f:g:i:m:s:w:S::")) != -1) {
 		switch (opt) {
 		case 'b':
 			out_block_size = (uint32_t)atof(optarg);
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 		case 'd':
 			dev_index = atoi(optarg);
 			break;
-        case 'T':
+        case 'D':
             intval = atoi(optarg);
             if ((intval >=0) && (intval <= 1))
             {
