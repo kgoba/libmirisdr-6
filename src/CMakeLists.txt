@@ -55,31 +55,57 @@ set_target_properties(mirisdr_static PROPERTIES OUTPUT_NAME mirisdr)
 endif()
 
 ########################################################################
+# Setup libraries used in executables
+########################################################################
+add_library(convenience_static STATIC
+    convenience/convenience.c
+)
+target_include_directories(convenience_static
+  PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(WIN32)
+add_library(libgetopt_static STATIC
+    getopt/getopt.c
+)
+target_link_libraries(convenience_static
+    mirisdr
+)
+endif()
+
+########################################################################
 # Build utility
 ########################################################################
 add_executable(miri_sdr miri_sdr.c)
 add_executable(miri_fm miri_fm.c)
-set(INSTALL_TARGETS mirisdr_shared mirisdr_static miri_sdr miri_fm)
+add_executable(miri_power miri_power.c)
+set(INSTALL_TARGETS mirisdr_shared mirisdr_static miri_sdr miri_fm miri_power)
 
-target_link_libraries(miri_sdr mirisdr_shared
+target_link_libraries(miri_sdr mirisdr_shared convenience_static
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
-target_link_libraries(miri_fm mirisdr_shared
+target_link_libraries(miri_fm mirisdr_shared convenience_static
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+
+target_link_libraries(miri_power mirisdr_shared convenience_static
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
 if(UNIX)
 target_link_libraries(miri_fm m)
+target_link_libraries(miri_power m)
 endif()
 
 if(WIN32)
 target_link_libraries(miri_sdr libgetopt_static)
 target_link_libraries(miri_fm libgetopt_static)
+target_link_libraries(miri_power libgetopt_static)
 set_property(TARGET miri_sdr APPEND PROPERTY COMPILE_DEFINITIONS "mirisdr_STATIC" )
 set_property(TARGET miri_fm APPEND PROPERTY COMPILE_DEFINITIONS "mirisdr_STATIC" )
+set_property(TARGET miri_power APPEND PROPERTY COMPILE_DEFINITIONS "mirisdr_STATIC" )
 endif()
 
 ########################################################################
