@@ -72,7 +72,7 @@
 
 #include "mirisdr.h"
 
-#include "convenience.c"
+#include "convenience/convenience.h"
 
 #define DEFAULT_SAMPLE_RATE		24000
 #define DEFAULT_ASYNC_BUF_NUMBER	32
@@ -197,7 +197,7 @@ void usage(void)
 		"\t    raw mode outputs 2x16 bit IQ pairs\n"
 		"\t[-s sample_rate (default: 24k)]\n"
 		"\t[-d device_index (default: 0)]\n"
-        "\t[-T device_type device variant (default: 0)]\n"
+        "\t[-D device_type device variant (default: 0)]\n"
         "\t    0:       Default\n"
         "\t    1:       SDRPlay\n"
 		"\t[-g tuner_gain (default: automatic)]\n"
@@ -238,6 +238,7 @@ void usage(void)
 		"\t    deemp:  enable de-emphasis filter\n"
 		"\t    direct: enable direct sampling\n"
 		"\t    offset: enable offset tuning\n"
+		"\t[-T enable bias-T]\n"
 		"\tfilename ('-' means stdout)\n"
 		"\t    omitting the filename also uses stdout\n\n"
 		"Experimental options:\n"
@@ -1156,6 +1157,7 @@ int main(int argc, char **argv)
 	int r, opt;
 	int dev_given = 0;
 	int custom_ppm = 0;
+	int enable_biastee = 0;
 	dongle_init(&dongle);
 	demod_init(&demod);
 	output_init(&output);
@@ -1163,13 +1165,13 @@ int main(int argc, char **argv)
     mirisdr_hw_flavour_t hw_flavour = MIRISDR_HW_DEFAULT;
     int intval;
 
-	while ((opt = getopt(argc, argv, "b:d:T:e:f:g:i:l:m:o:p:r:s:t:w:E:F:A:M:h")) != -1) {
+	while ((opt = getopt(argc, argv, "b:d:D:T:e:f:g:i:l:m:o:p:r:s:t:w:E:F:A:M:h")) != -1) {
 		switch (opt) {
 		case 'd':
 			dongle.dev_index = verbose_device_search(optarg);
 			dev_given = 1;
 			break;
-        case 'T':
+        case 'D':
             intval = atoi(optarg);
             if ((intval >=0) && (intval <= 1))
             {
@@ -1288,6 +1290,9 @@ int main(int argc, char **argv)
 				demod.deemph = 1;
 				demod.squelch_level = 0;}
 			break;
+		case 'T':
+			enable_biastee = 1;
+			break;
 		case 'h':
 		default:
 			usage();
@@ -1358,6 +1363,10 @@ int main(int argc, char **argv)
 		verbose_ppm_eeprom(dongle.dev, &(dongle.ppm_error));
 	}
 	verbose_ppm_set(dongle.dev, dongle.ppm_error);
+
+	mirisdr_set_bias(dongle.dev, enable_biastee);
+	if (enable_biastee)
+		fprintf(stderr, "activated bias-T\n");
 
 	if (strcmp(output.filename, "-") == 0) { /* Write samples to stdout */
 		output.file = stdout;
