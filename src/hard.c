@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "hard.h"
+#include "mirisdr_private.h"
 
 /* nastavení parametrů které vyžadují restart */
 /* parameters that require restart */
@@ -26,7 +26,7 @@ int mirisdr_set_hard(mirisdr_dev_t *p)
 	uint64_t i, vco, n, fract;
 
 	/* při změně registrů musíme zastavit streamování */
-	/* at a registry change we must stop streaming */
+	/* at a register change we must stop streaming */
 	if (p->async_status == MIRISDR_ASYNC_RUNNING)
 	{
 		streaming = 1;
@@ -37,7 +37,7 @@ int mirisdr_set_hard(mirisdr_dev_t *p)
 	}
 
 	/* omezení rozsahu */
-	/* limit the scope of */
+	/* clamp the sample rate */
 	if (p->rate > MIRISDR_SAMPLE_RATE_MAX)
 	{
 		fprintf(stderr, "can't set rate %u, setting maximum rate: %d\n", p->rate, MIRISDR_SAMPLE_RATE_MAX);

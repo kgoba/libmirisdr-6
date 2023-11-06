@@ -22,6 +22,16 @@
 ########################################################################
 add_library(mirisdr_shared SHARED
     libmirisdr.c
+    reg.c
+    adc.c
+    convert.c
+    async.c
+    devices.c
+    gain.c
+    hard.c
+    streaming.c
+    soft.c
+    sync.c
 )
 
 target_link_libraries(mirisdr_shared
@@ -35,6 +45,16 @@ set_target_properties(mirisdr_shared PROPERTIES VERSION ${LIBVER})
 
 add_library(mirisdr_static STATIC
     libmirisdr.c
+    reg.c
+    adc.c
+    convert.c
+    async.c
+    devices.c
+    gain.c
+    hard.c
+    streaming.c
+    soft.c
+    sync.c
 )
 
 if(WIN32)

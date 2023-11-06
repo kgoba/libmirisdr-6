@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "gain.h"
+#include "mirisdr_private.h"
 
 int mirisdr_set_gain(mirisdr_dev_t *p)
 {
@@ -114,7 +114,7 @@ int mirisdr_set_tuner_gain(mirisdr_dev_t *p, int gain)
      * je možné nastavovat plynule od 0 - 59 dB, z toho je maximální
      * zesílení 102 dB
      *
-     * For VHF mode LNA is turned on to + 24 db, mixer to + 19 dB and baseband
+     * For VHF mode LNA is turned on to +24 db, mixer to +19 dB and baseband
      * can be adjusted continuously from 0 to 59 db, of which the maximum gain of 102 db
      */
     if (p->gain > 102)
@@ -123,7 +123,7 @@ int mirisdr_set_tuner_gain(mirisdr_dev_t *p, int gain)
     }
     else if (p->gain < 0)
     {
-        goto gain_auto;
+        return mirisdr_set_tuner_gain_mode(p, 0);
     }
 
     /* Nejvyšší citlivost vždy bez redukce mixeru a lna */
@@ -151,8 +151,6 @@ int mirisdr_set_tuner_gain(mirisdr_dev_t *p, int gain)
     }
 
     return mirisdr_set_gain(p);
-
-    gain_auto: return mirisdr_set_tuner_gain_mode(p, 0);
 }
 
 int mirisdr_get_tuner_gain(mirisdr_dev_t *p)

@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mirisdr_private.h"
 
 int mirisdr_write_reg (mirisdr_dev_t *p, uint8_t reg, uint32_t val) {
     uint16_t value = (val & 0xff) << 8 | reg;
@@ -27,7 +28,8 @@ int mirisdr_write_reg (mirisdr_dev_t *p, uint8_t reg, uint32_t val) {
     fprintf( stderr, "write reg: 0x%02x, val 0x%08x\n", reg, val);
 #endif
 
-    return libusb_control_transfer(p->dh, 0x42, 0x41, value, index, NULL, 0, CTRL_TIMEOUT);
+    return libusb_control_transfer(p->dh, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_ENDPOINT, 0x41, value, index,
+            NULL, 0, CTRL_TIMEOUT);
 
 failed:
     return -1;

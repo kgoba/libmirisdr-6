@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "soft.h"
+#include "mirisdr_private.h"
 
 //float band_limits[] = {
 //        0.,     12.,    30.,    50.,    108.,   250.,   390.,   960.,   2400,   -1.

@@ -15,43 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* potřebné funkce */
-#include <errno.h>
-#include <signal.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-
-#if !defined (_WIN32) || defined(__MINGW32__)
-#include <unistd.h>
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#include "libusb.h"
-
-#ifndef LIBUSB_CALL
-#define LIBUSB_CALL
-#endif
-
 /* hlavní hlavičkový soubor */
 #include "mirisdr.h"
 
 /* interní definice */
-#include "constants.h"
-#include "structs.h"
+#include "mirisdr_private.h"
 
-/* interní funkce - inline */
-#include "reg.c"
-#include "adc.c"
-#include "convert/base.c"
-#include "async.c"
-#include "devices.c"
-#include "gain.c"
-#include "hard.c"
-#include "streaming.c"
-#include "soft.c"
-#include "sync.c"
 
 int mirisdr_setup (mirisdr_dev_t **out_dev, mirisdr_dev_t *dev) {
     int r;
@@ -109,7 +78,7 @@ int mirisdr_setup (mirisdr_dev_t **out_dev, mirisdr_dev_t *dev) {
     dev->hw_flavour = MIRISDR_HW_DEFAULT;
 
     /* ISOC is more stable but works only on Unix systems */
-#if !defined (_WIN32) || defined(__MINGW32__)
+#ifndef _WIN32
     dev->transfer = MIRISDR_TRANSFER_ISOC;
 #else
     dev->transfer = MIRISDR_TRANSFER_BULK;
@@ -227,7 +196,7 @@ int mirisdr_open_fd (mirisdr_dev_t **p, int fd) {
         free(dev);
         return -1;
     }
-    
+
     r = libusb_wrap_sys_device(dev->ctx, (intptr_t)fd, &dev->dh);
     if (r || dev->dh == NULL){
         free(dev);
@@ -244,7 +213,7 @@ int mirisdr_close (mirisdr_dev_t *p) {
     mirisdr_cancel_async_now(p);
 
     // similar to rtl-sdr
-#if defined(_WIN32) && !defined(__MINGW32__)
+#ifdef _WIN32
             Sleep(1);
 #else
             usleep(1000);

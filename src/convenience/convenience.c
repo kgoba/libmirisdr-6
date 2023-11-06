@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if !defined(_WIN32) || defined(__MINGW32__)
+#ifndef _WIN32
 #include <unistd.h>
 #else
 #include <windows.h>
@@ -49,9 +49,11 @@ double atofs(char *s)
 		case 'g':
 		case 'G':
 			suff *= 1e3;
+			/* fall-through */
 		case 'm':
 		case 'M':
 			suff *= 1e3;
+			/* fall-through */
 		case 'k':
 		case 'K':
 			suff *= 1e3;
@@ -76,9 +78,11 @@ double atoft(char *s)
 		case 'h':
 		case 'H':
 			suff *= 60;
+			/* fall-through */
 		case 'm':
 		case 'M':
 			suff *= 60;
+			/* fall-through */
 		case 's':
 		case 'S':
 			suff *= atof(s);

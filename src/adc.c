@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mirisdr_private.h"
+
 int mirisdr_adc_init (mirisdr_dev_t *p) {
     if (!p) goto failed;
 

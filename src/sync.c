@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mirisdr.h"
+#include "mirisdr_private.h"
 
 /* pouze pro bulk transfer a je třeba doplnit konverze formátů */
 int mirisdr_read_sync (mirisdr_dev_t *p, void *buf, int len, int *n_read) {

@@ -15,11 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mirisdr_private.h"
+
 int mirisdr_streaming_start (mirisdr_dev_t *p) {
     if (!p) goto failed;
     if (!p->dh) goto failed;
 
-    libusb_control_transfer(p->dh, 0x42, 0x43, 0x0, 0x0, NULL, 0, CTRL_TIMEOUT);
+    libusb_control_transfer(p->dh, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_ENDPOINT, 0x43, 0x0,
+                            0x0, NULL, 0, CTRL_TIMEOUT);
 
     return 0;
 
@@ -31,11 +34,11 @@ int mirisdr_streaming_stop (mirisdr_dev_t *p) {
     if (!p) goto failed;
     if (!p->dh) goto failed;
 
-    libusb_control_transfer(p->dh, 0x42, 0x45, 0x0, 0x0, NULL, 0, CTRL_TIMEOUT);
+    libusb_control_transfer(p->dh, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_ENDPOINT, 0x45, 0x0,
+                            0x0, NULL, 0, CTRL_TIMEOUT);
 
     return 0;
 
 failed:
     return -1;
 }
-

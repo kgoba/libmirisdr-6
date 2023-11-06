@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mirisdr_private.h"
+
 static mirisdr_device_t mirisdr_devices[] = {
     { 0x1df7, 0x2500, "Mirics MSi2500 default (e.g. VTX3D card)", "Mirics", "MSi2500"},
     { 0x1df7, 0x3000, "SDRplay RSP1A", "SDRPlay", "RSP1A"},
@@ -25,7 +27,7 @@ static mirisdr_device_t mirisdr_devices[] = {
     { 0x0511, 0x0037, "Logitec LDT-1S310U/J", "Logitec", "LDT-1S310U/J"}
 };
 
-static mirisdr_device_t *mirisdr_device_get (uint16_t vid, uint16_t pid) {
+mirisdr_device_t *mirisdr_device_get (uint16_t vid, uint16_t pid) {
     size_t i;
 
     for (i = 0; i < sizeof(mirisdr_devices) / sizeof(mirisdr_device_t); i++) {

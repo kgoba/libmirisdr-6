@@ -15,7 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "async.h"
+#include "mirisdr_private.h"
+#include <stdio.h>
 
 /* uložení dat */
 static int mirisdr_feed_async (mirisdr_dev_t *p, unsigned char *samples, uint32_t bytes) {
