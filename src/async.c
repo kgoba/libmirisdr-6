@@ -25,57 +25,34 @@ static int mirisdr_feed_async (mirisdr_dev_t *p, unsigned char *samples, uint32_
     if (!p) goto failed;
     if (!p->cb) goto failed;
 
-    /* automatická velikost */
+#if MIRISDR_DEBUG >= 2
+    fprintf( stderr, "%lu %lu %u\n", p->xfer_out_len, p->xfer_out_pos, bytes);
+#endif
+
+    /* auto size */
     if (!p->xfer_out_len) {
-        /* přímé zaslání */
+        /* direct call */
         p->cb(samples, bytes, p->cb_ctx);
-    /* fixní velikost bufferu bez předchozích dat */
-    } else if (p->xfer_out_pos == 0) {
-        /* buffer přesně odpovídá - málo časté, přímé zaslání */
-        if (bytes == p->xfer_out_len) {
-            p->cb(samples, bytes, p->cb_ctx);
-        /* buffer je kratší */
-        } else if (bytes < p->xfer_out_len) {
-            memcpy(p->xfer_out, samples, bytes);
-            p->xfer_out_pos = bytes;
-        /* buffer je delší */
-        } else {
-            /* muže být i x násobkem délky */
-            for (i = 0;; i+= p->xfer_out_len) {
-                if (i + p->xfer_out_len > bytes) {
-                    if (bytes > i) {
-                        memcpy(p->xfer_out, samples + i, bytes - i);
-                        p->xfer_out_pos = bytes - i;
-                    }
-                    break;
-                }
-                p->cb(samples + i, p->xfer_out_len, p->cb_ctx);
-            }
-        }
-    /* data jsou přesně, využije se interní buffer */
-    } else if (p->xfer_out_pos + bytes == p->xfer_out_len) {
-        memcpy(p->xfer_out + p->xfer_out_pos, samples, bytes);
-        p->cb(p->xfer_out, p->xfer_out_len, p->cb_ctx);
-        p->xfer_out_pos = 0;
-    /* není dostatek dat */
-    } else if (p->xfer_out_pos + bytes < p->xfer_out_len) {
-        memcpy(p->xfer_out + p->xfer_out_pos, samples, bytes);
-        p->xfer_out_pos+= bytes;
-    /* dat je více než potřebujeme, nejsložitější případ */
+    /* fixed buffer size without previous data */
     } else {
-        memcpy(p->xfer_out + p->xfer_out_pos, samples, p->xfer_out_len - p->xfer_out_pos);
-        p->cb(p->xfer_out, p->xfer_out_len, p->cb_ctx);
-        for (i = p->xfer_out_len - p->xfer_out_pos;; i+= p->xfer_out_len) {
-            if (i + p->xfer_out_len > bytes) {
-                if (bytes > i) {
-                    memcpy(p->xfer_out, samples + i, bytes - i);
-                    p->xfer_out_pos = bytes - i;
-                } else {
-                    p->xfer_out_pos = 0;
-                }
-                break;
+        while (p->xfer_out_pos + bytes >= p->xfer_out_len) {
+            i = p->xfer_out_len - p->xfer_out_pos;
+
+            if (p->xfer_out_pos > 0) {
+                memcpy(p->xfer_out + p->xfer_out_pos, samples, (size_t)i);
+                p->cb(p->xfer_out, p->xfer_out_len, p->cb_ctx);
             }
-            p->cb(samples + i, p->xfer_out_len, p->cb_ctx);
+            else {
+                p->cb(samples, i, p->cb_ctx);
+            }
+
+            bytes -= i;
+            samples += i;
+            p->xfer_out_pos = 0;
+        }
+        if (bytes > 0) {
+            memcpy(p->xfer_out + p->xfer_out_pos, samples, (size_t)bytes);
+            p->xfer_out_pos += bytes;
         }
     }
     return 0;
@@ -96,116 +73,133 @@ static uint8_t *samples_realloc(mirisdr_dev_t *p, int size)
     return p->samples;
 }
 
-/* volání pro zasílání dat */
-static void LIBUSB_CALL _libusb_callback (struct libusb_transfer *xfer) {
+static int _process_isochronous_transfer(mirisdr_dev_t *p, struct libusb_transfer *xfer) {
     size_t i;
     int len, bytes = 0;
     static unsigned char *iso_packet_buf;
-    mirisdr_dev_t *p = (mirisdr_dev_t*) xfer->user_data;
     uint8_t *samples = p->samples;
+
+    switch (p->format) {
+    case MIRISDR_FORMAT_252_S16:
+        samples = samples_realloc(p, 504 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
+        for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
+            struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
+
+            /* buffer_simple je pouze pro stejně velké pakety */
+            if ((packet->actual_length > 0) &&
+                (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
+                /* size smaller than 3072 is fine, it's a multiple of 1024, anything else is an error */
+                len = mirisdr_samples_convert_252_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
+                bytes+= len;
+            }
+        }
+        break;
+    case MIRISDR_FORMAT_336_S16:
+        samples = samples_realloc(p, 672 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
+        for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
+            struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
+            if ((packet->actual_length > 0) &&
+                (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
+                len = mirisdr_samples_convert_336_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
+                bytes+= len;
+            }
+        }
+        break;
+    case MIRISDR_FORMAT_384_S16:
+        samples = samples_realloc(p, 768 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
+        for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
+            struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
+            if ((packet->actual_length > 0) &&
+                (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
+                len = mirisdr_samples_convert_384_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
+                bytes+= len;
+            }
+        }
+        break;
+    case MIRISDR_FORMAT_504_S16:
+        samples = samples_realloc(p, 1008 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
+        for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
+            struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
+            if ((packet->actual_length > 0) &&
+                (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
+                len = mirisdr_samples_convert_504_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
+                bytes+= len;
+            }
+        }
+        break;
+    case MIRISDR_FORMAT_504_S8:
+        samples = samples_realloc(p, 1008 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS);
+        for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
+            struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
+            if ((packet->actual_length > 0) &&
+                (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
+                len = mirisdr_samples_convert_504_s8(p, iso_packet_buf, samples + bytes, packet->actual_length);
+                bytes+= len;
+            }
+        }
+        break;
+    }
+
+    return bytes;
+}
+
+static int _process_bulk_transfer(mirisdr_dev_t *p, struct libusb_transfer *xfer) {
+    int bytes = 0;
+    uint8_t *samples = p->samples;
+
+    switch (p->format) {
+    case MIRISDR_FORMAT_252_S16:
+        samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1008);
+        bytes = mirisdr_samples_convert_252_s16(p, xfer->buffer, samples, xfer->actual_length);
+        break;
+    case MIRISDR_FORMAT_336_S16:
+        samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1344);
+        bytes = mirisdr_samples_convert_336_s16(p, xfer->buffer, samples, xfer->actual_length);
+        break;
+    case MIRISDR_FORMAT_384_S16:
+        samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1536);
+        bytes = mirisdr_samples_convert_384_s16(p, xfer->buffer, samples, xfer->actual_length);
+        break;
+    case MIRISDR_FORMAT_504_S16:
+        samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 2016);
+        bytes = mirisdr_samples_convert_504_s16(p, xfer->buffer, samples, xfer->actual_length);
+        break;
+    case MIRISDR_FORMAT_504_S8:
+        samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1008);
+        bytes = mirisdr_samples_convert_504_s8(p, xfer->buffer, samples, xfer->actual_length);
+        break;
+    }
+
+    return bytes;
+}
+
+/* called when data is received */
+static void LIBUSB_CALL _libusb_callback (struct libusb_transfer *xfer) {
+    int bytes = 0;
+    mirisdr_dev_t *p = (mirisdr_dev_t*) xfer->user_data;
 
     if (!p) goto failed;
 
-    /* zpracujeme pouze kompletní přenos */
+    /* we will only process a completed transfer */
     if (xfer->status == LIBUSB_TRANSFER_COMPLETED) {
         /*
-         * Určení správné velikosti bufferu, tato část musí být provedena
-         * v jednom kroku, jinak může dojít ke změně formátu uprostřed procesu,
-         * druhá možnost je používat lock.
+          * To determine the correct buffer size, this part must be done
+          * in one step, otherwise the format may change in the middle of the process,
+          * the second option is to use lock.
          */
         switch (xfer->type) {
         case LIBUSB_TRANSFER_TYPE_ISOCHRONOUS:
-            switch (p->format) {
-            case MIRISDR_FORMAT_252_S16:
-                samples = samples_realloc(p, 504 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
-                for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
-                    struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
-
-                    /* buffer_simple je pouze pro stejně velké pakety */
-                    if ((packet->actual_length > 0) &&
-                        (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
-                        /* menší velikost než 3072 nevadí, je běžný násobek 1024, cokoliv jiného je chyba */
-                        len = mirisdr_samples_convert_252_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
-                        bytes+= len;
-                    }
-                }
-                break;
-            case MIRISDR_FORMAT_336_S16:
-                samples = samples_realloc(p, 672 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
-                for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
-                    struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
-                    if ((packet->actual_length > 0) &&
-                        (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
-                        len = mirisdr_samples_convert_336_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
-                        bytes+= len;
-                    }
-                }
-                break;
-            case MIRISDR_FORMAT_384_S16:
-                samples = samples_realloc(p, 768 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
-                for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
-                    struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
-                    if ((packet->actual_length > 0) &&
-                        (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
-                        len = mirisdr_samples_convert_384_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
-                        bytes+= len;
-                    }
-                }
-                break;
-            case MIRISDR_FORMAT_504_S16:
-                samples = samples_realloc(p, 1008 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS * 2);
-                for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
-                    struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
-                    if ((packet->actual_length > 0) &&
-                        (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
-                        len = mirisdr_samples_convert_504_s16(p, iso_packet_buf, samples + bytes, packet->actual_length);
-                        bytes+= len;
-                    }
-                }
-                break;
-            case MIRISDR_FORMAT_504_S8:
-                samples = samples_realloc(p, 1008 * DEFAULT_ISO_BUFFERS * DEFAULT_ISO_PACKETS);
-                for (i = 0; i < DEFAULT_ISO_PACKETS; i++) {
-                    struct libusb_iso_packet_descriptor *packet = &xfer->iso_packet_desc[i];
-                    if ((packet->actual_length > 0) &&
-                        (iso_packet_buf = libusb_get_iso_packet_buffer_simple(xfer, i))) {
-                        len = mirisdr_samples_convert_504_s8(p, iso_packet_buf, samples + bytes, packet->actual_length);
-                        bytes+= len;
-                    }
-                }
-                break;
-            }
+            bytes = _process_isochronous_transfer(p, xfer);
             break;
         case LIBUSB_TRANSFER_TYPE_BULK:
-            switch (p->format) {
-            case MIRISDR_FORMAT_252_S16:
-                samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1008);
-                bytes = mirisdr_samples_convert_252_s16(p, xfer->buffer, samples, xfer->actual_length);
-                break;
-            case MIRISDR_FORMAT_336_S16:
-                samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1344);
-                bytes = mirisdr_samples_convert_336_s16(p, xfer->buffer, samples, xfer->actual_length);
-                break;
-            case MIRISDR_FORMAT_384_S16:
-                samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1536);
-                bytes = mirisdr_samples_convert_384_s16(p, xfer->buffer, samples, xfer->actual_length);
-                break;
-            case MIRISDR_FORMAT_504_S16:
-                samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 2016);
-                bytes = mirisdr_samples_convert_504_s16(p, xfer->buffer, samples, xfer->actual_length);
-                break;
-            case MIRISDR_FORMAT_504_S8:
-                samples = samples_realloc(p, (DEFAULT_BULK_BUFFER / 1024) * 1008);
-                bytes = mirisdr_samples_convert_504_s8(p, xfer->buffer, samples, xfer->actual_length);
-                break;
-            }
+            bytes = _process_bulk_transfer(p, xfer);
             break;
         default:
             fprintf( stderr, "not isoc or bulk transfer type on usb device: %u\n", p->index);
             goto failed;
         }
 
-        if (bytes > 0) mirisdr_feed_async(p, samples, bytes);
+        if (bytes > 0) mirisdr_feed_async(p, p->samples, bytes);
 
         if (xfer->type == LIBUSB_TRANSFER_TYPE_BULK)
         {
@@ -217,7 +211,7 @@ static void LIBUSB_CALL _libusb_callback (struct libusb_transfer *xfer) {
             }else
                 xfer->length = DEFAULT_BULK_BUFFER;
         }
-        /* pokračujeme dalším přenosem */
+        /* resubmit the transfer */
         if (libusb_submit_transfer(xfer) < 0) {
             fprintf( stderr, "error re-submitting URB on device %u\n", p->index);
             goto failed;
@@ -231,7 +225,7 @@ static void LIBUSB_CALL _libusb_callback (struct libusb_transfer *xfer) {
 
 failed:
     mirisdr_cancel_async(p);
-    /* stav failed má absolutní přednost */
+    /* the failed status has absolute priority */
     p->async_status = MIRISDR_ASYNC_FAILED;
 }
 
@@ -293,7 +287,7 @@ failed:
     return -1;
 }
 
-/* alokace asynchronních bufferů */
+/* allocation of asynchronous buffers */
 static int mirisdr_async_alloc (mirisdr_dev_t *p) {
     size_t i;
 
@@ -304,9 +298,11 @@ static int mirisdr_async_alloc (mirisdr_dev_t *p) {
             switch (p->transfer) {
             case MIRISDR_TRANSFER_BULK:
                 p->xfer[i] = libusb_alloc_transfer(0);
+                p->xfer[i]->type = LIBUSB_TRANSFER_TYPE_BULK;
                 break;
             case MIRISDR_TRANSFER_ISOC:
                 p->xfer[i] = libusb_alloc_transfer(DEFAULT_ISO_PACKETS);
+                p->xfer[i]->type = LIBUSB_TRANSFER_TYPE_ISOCHRONOUS;
                 break;
             }
         }
@@ -335,7 +331,7 @@ static int mirisdr_async_alloc (mirisdr_dev_t *p) {
     return 0;
 }
 
-/* uvolnění asynchronních bufferů */
+/* releasing asynchronous buffers */
 static int mirisdr_async_free (mirisdr_dev_t *p) {
     size_t i;
 
@@ -419,7 +415,7 @@ int mirisdr_read_async (mirisdr_dev_t *p, mirisdr_read_async_cb_t cb, void *ctx,
 
     mirisdr_async_alloc(p);
 
-    /* spustíme přenosy */
+    /* submit the transfers */
     for (i = 0; i < p->xfer_buf_num; i++) {
         switch (p->transfer) {
         case MIRISDR_TRANSFER_BULK:

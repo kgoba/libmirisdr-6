@@ -82,6 +82,7 @@ void usage(void)
         "\t[-g gain (default: 0 for auto)]\n"
         "\t[-p ppm_error (default: 0)]\n"
         "\t[-b output_block_size (default: 16 * 16384)]\n"
+        "\t[-n number of samples to read (default: 0, infinite)]\n"
         "\t[-S force sync output (default: async)]\n"
         "\tfilename (a '-' dumps samples to stdout)\n\n");
     exit(1);
@@ -161,12 +162,12 @@ int main(int argc, char **argv)
     uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
     uint32_t out_block_size = DEFAULT_BUF_LENGTH;
     int count;
-    int gains[100];
+    int gains[120];
     uint32_t rates[100];
     mirisdr_hw_flavour_t hw_flavour = MIRISDR_HW_DEFAULT;
     int intval;
 
-    while ((opt = getopt(argc, argv, "b:d:D:e:f:g:p:i:m:s:w:S::")) != -1) {
+    while ((opt = getopt(argc, argv, "b:d:D:e:f:g:p:i:m:s:w:n:S::")) != -1) {
         switch (opt) {
         case 'b':
             out_block_size = (uint32_t)atof(optarg);
@@ -219,6 +220,9 @@ int main(int argc, char **argv)
         case 'w':
             bw = atoi(optarg);
             break;
+		case 'n':
+			bytes_to_read = (uint32_t)atof(optarg) * 2;
+			break;
         case 'S':
             sync_mode = 1;
             break;
@@ -281,13 +285,13 @@ int main(int argc, char **argv)
     /* Set the frequency */
 	verbose_set_frequency(dev, frequency);
 
-    count = mirisdr_get_tuner_gains(dev, NULL);
-    fprintf(stderr, "Supported gain values (%d): ", count);
+    // count = mirisdr_get_tuner_gains(dev, NULL);
+    // fprintf(stderr, "Supported gain values (%d): ", count);
 
-    count = mirisdr_get_tuner_gains(dev, gains);
-    for (i = 0; i < count; i++)
-        fprintf(stderr, "%.1f ", gains[i] / 10.0);
-    fprintf(stderr, "\n");
+    // count = mirisdr_get_tuner_gains(dev, gains);
+    // for (i = 0; i < count; i++)
+    //     fprintf(stderr, "%.1f ", gains[i] / 10.0);
+    // fprintf(stderr, "\n");
 
     if (0 == gain) {
         /* Enable automatic gain */

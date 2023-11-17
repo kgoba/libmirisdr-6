@@ -99,7 +99,7 @@ int mirisdr_get_tuner_gains(mirisdr_dev_t *dev, int *gains)
     {
         for (i = 0; i <= 102; i++)
         {
-            gains[i] = i;
+            gains[i] = i * 10;
         }
     }
 
@@ -253,17 +253,15 @@ int mirisdr_get_mixer_gain(mirisdr_dev_t *p)
 
 int mirisdr_get_mixbuffer_gain(mirisdr_dev_t *p)
 {
+    int gain = 0;
+
     if (p->band == MIRISDR_BAND_AM1)
     {
-        return 18 - 6*p->gain_reduction_mixbuffer;
+        gain = 18 - 6*p->gain_reduction_mixbuffer;
     }
     else if (p->band == MIRISDR_BAND_AM2)
     {
-        return p->gain_reduction_mixbuffer == 0 ? 24 : 0;
-    }
-    else
-    {
-        return 0;
+        gain = p->gain_reduction_mixbuffer == 0 ? 24 : 0;
     }
 }
 

@@ -79,7 +79,8 @@ int mirisdr_setup (mirisdr_dev_t **out_dev, mirisdr_dev_t *dev) {
 
     /* ISOC is more stable but works only on Unix systems */
 #ifndef _WIN32
-    dev->transfer = MIRISDR_TRANSFER_ISOC;
+    // dev->transfer = MIRISDR_TRANSFER_ISOC;
+    dev->transfer = MIRISDR_TRANSFER_BULK; // changed for now since ISOC is unstable on MacOS
 #else
     dev->transfer = MIRISDR_TRANSFER_BULK;
 #endif
@@ -283,14 +284,42 @@ failed:
 }
 
 int mirisdr_get_usb_strings (mirisdr_dev_t *dev, char *manufact, char *product, char *serial) {
-(void) dev;
-    fprintf( stderr, "mirisdr_get_usb_strings not implemented yet\n");
+	struct libusb_device_descriptor dd;
+	libusb_device *device = NULL;
+	const int buf_max = 256;
+	int r = 0;
 
-    memset(manufact, 0, 256);
-    memset(product, 0, 256);
-    memset(serial, 0, 256);
+	if (!dev || !dev->dh)
+		return -1;
 
-    return 0;
+	device = libusb_get_device(dev->dh);
+
+	r = libusb_get_device_descriptor(device, &dd);
+	if (r < 0)
+		return -1;
+
+	if (manufact) {
+		memset(manufact, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->dh, dd.iManufacturer,
+						   (unsigned char *)manufact,
+						   buf_max);
+	}
+
+	if (product) {
+		memset(product, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->dh, dd.iProduct,
+						   (unsigned char *)product,
+						   buf_max);
+	}
+
+	if (serial) {
+		memset(serial, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->dh, dd.iSerialNumber,
+						   (unsigned char *)serial,
+						   buf_max);
+	}
+
+	return 0;
 }
 
 int mirisdr_set_hw_flavour (mirisdr_dev_t *p, mirisdr_hw_flavour_t hw_flavour) {

@@ -17,6 +17,15 @@
 # the Free Software Foundation, Inc., 51 Franklin Street,
 # Boston, MA 02110-1301, USA.
 
+option(SANITIZE "Sanitize addresses (check for buffer overflows)" OFF)
+if (SANITIZE)
+    message (STATUS "Building with address sanitisation enabled")
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+else (SANITIZE)
+    message (STATUS "Building with address sanitisation  disabled, use -DSANITIZE=ON to enable")
+endif (SANITIZE)
+
 ########################################################################
 # Setup library
 ########################################################################

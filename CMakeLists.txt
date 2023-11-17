@@ -114,6 +114,14 @@ else (DETACH_KERNEL_DRIVER)
     message (STATUS "Building with kernel driver detaching disabled, use -DDETACH_KERNEL_DRIVER=ON to enable")
 endif (DETACH_KERNEL_DRIVER)
 
+option(DEBUG "Build with debug logging" OFF)
+if (DEBUG)
+    message (STATUS "Building with debug enabled")
+    add_definitions(-DMIRISDR_DEBUG=1)
+else (DEBUG)
+    message (STATUS "Building with debug disabled, use -DDEBUG=ON to enable")
+endif (DEBUG)
+
 ########################################################################
 # Add subdirectories
 ########################################################################
